@@ -843,6 +843,7 @@ Status EfficientAttention(
                     : nullptr;
   p.stream = stream;
   p.has_custom_right_padding = true;
+  p.use_smooth_softmax = parameters.use_smooth_softmax;
   run_memory_efficient_attention(p);
 
   DUMP_TENSOR("efficient attention output", data.output, batch_size, sequence_length, num_heads, head_size);
