@@ -71,6 +71,7 @@ MLAS_INTERNAL_DATA const float MlasMinimumF32Value = std::numeric_limits<float>:
 struct MLAS_SOFTMAX_WORK_BLOCK {
     ptrdiff_t ThreadCountN;
     bool LogSoftmax;
+    bool SmoothSoftmax;
     const float* Input;
     float* Output;
     size_t N;
@@ -880,7 +881,6 @@ Return Value:
         float NegativeMaximum = -Maximum;
 
         if (LogSoftmax) {
-
             //
             // Compute the sum of the exponential functions for the row.
             //
@@ -904,6 +904,11 @@ Return Value:
 #endif
 
         } else {
+            // Smooth softmax does not work with log softmax right now.
+            const bool SmoothSoftmax = WorkBlock->SmoothSoftmax;
+            if (SmoothSoftmax && NegativeMaximum > 0.0f) {
+                NegativeMaximum = 0.0f;
+            }
 
             //
             // Compute the exponential function for each element of the row and
@@ -919,8 +924,9 @@ Return Value:
             //
             // Normalize the softmax output.
             //
+            const float Sum = SmoothSoftmax ? (Accumulation + expf(NegativeMaximum)) : Accumulation;
 
-            float Parameters[] = { 1.0f / Accumulation };
+            float Parameters[] = { 1.0f / Sum };
 
 #if defined(MLAS_TARGET_AMD64) || defined(MLAS_TARGET_LARCH64)
             GetMlasPlatform().ComputeSoftmaxOutputF32Kernel(Output, D, Parameters);
@@ -943,6 +949,7 @@ MlasComputeSoftmax(
     size_t N,
     size_t D,
     bool LogSoftmax,
+    bool SmoothSoftmax,
     MLAS_THREADPOOL* ThreadPool
     )
 /*++
@@ -966,6 +973,9 @@ Arguments:
     LogSoftmax - Supplies true if this is a log softmax operation, else false
         if this is a softmax operation.
 
+    SmoothSoftmax - Supplies true if smooth factor is used in softmax operation.
+                    This will be ignored if LogSoftmax is true.
+
     ThreadPool - Supplies the thread pool object to use, else nullptr if the
         base library threading support should be used.
 
@@ -982,6 +992,7 @@ Return Value:
     //
 
     WorkBlock.LogSoftmax = LogSoftmax;
+    WorkBlock.SmoothSoftmax = SmoothSoftmax;
     WorkBlock.Input = Input;
     WorkBlock.Output = Output;
     WorkBlock.N = N;
