@@ -182,12 +182,12 @@ Return Value:
 }
 
 void
-    MLASCALL
-    MlasComputeExpF32Kernel(
-        const float* Input,
-        float* Output,
-        size_t N
-    )
+MLASCALL
+MlasComputeExpF32Kernel(
+    const float* Input,
+    float* Output,
+    size_t N
+)
 /*++
 
 Routine Description:
@@ -245,12 +245,12 @@ Return Value:
 }
 
 void
-    MLASCALL
-    MlasComputeExp(
-        const float* Input,
-        float* Output,
-        size_t N
-    )
+MLASCALL
+MlasComputeExp(
+    const float* Input,
+    float* Output,
+    size_t N
+)
 /*++
 
 Routine Description:
@@ -371,13 +371,13 @@ Return Value:
 }
 
 float
-    MLASCALL
-    MlasComputeSumExpF32Kernel(
-        const float* Input,
-        float* Output,
-        size_t N,
-        const float* NegativeMaximum
-    )
+MLASCALL
+MlasComputeSumExpF32Kernel(
+    const float* Input,
+    float* Output,
+    size_t N,
+    const float* NegativeMaximum
+)
 /*++
 
 Routine Description:
@@ -488,11 +488,11 @@ Return Value:
 }
 
 float
-    MLASCALL
-    MlasReduceMaximumF32Kernel(
-        const float* Input,
-        size_t N
-    )
+MLASCALL
+MlasReduceMaximumF32Kernel(
+    const float* Input,
+    size_t N
+)
 /*++
 
 Routine Description:
@@ -558,13 +558,13 @@ Return Value:
 }
 
 void
-    MLASCALL
-    MlasReduceMinimumMaximumF32Kernel(
-        const float* Input,
-        float* Min,
-        float* Max,
-        size_t N
-    )
+MLASCALL
+MlasReduceMinimumMaximumF32Kernel(
+    const float* Input,
+    float* Min,
+    float* Max,
+    size_t N
+)
 {
     float tmp_min = std::numeric_limits<float>::max();
     float tmp_max = std::numeric_limits<float>::lowest();
@@ -638,12 +638,12 @@ void
 }
 
 void
-    MLASCALL
-    MlasComputeSoftmaxOutputF32Kernel(
-        float* Output,
-        size_t N,
-        const float* Parameters
-    )
+MLASCALL
+MlasComputeSoftmaxOutputF32Kernel(
+    float* Output,
+    size_t N,
+    const float* Parameters
+)
 /*++
 
 Routine Description:
@@ -700,13 +700,13 @@ Return Value:
 }
 
 void
-    MLASCALL
-    MlasComputeLogSoftmaxOutputF32Kernel(
-        const float* Input,
-        float* Output,
-        size_t N,
-        const float* Parameters
-    )
+MLASCALL
+MlasComputeLogSoftmaxOutputF32Kernel(
+    const float* Input,
+    float* Output,
+    size_t N,
+    const float* Parameters
+)
 /*++
 
 Routine Description:
@@ -907,16 +907,16 @@ Return Value:
 }
 
 void
-    MLASCALL
-    MlasComputeSoftmax(
-        const float* Input,
-        float* Output,
-        size_t N,
-        size_t D,
-        bool LogSoftmax,
-        bool SmoothSoftmax,
-        MLAS_THREADPOOL* ThreadPool
-    )
+MLASCALL
+MlasComputeSoftmax(
+    const float* Input,
+    float* Output,
+    size_t N,
+    size_t D,
+    bool LogSoftmax,
+    bool SmoothSoftmax,
+    MLAS_THREADPOOL* ThreadPool
+)
 /*++
 
 Routine Description:
