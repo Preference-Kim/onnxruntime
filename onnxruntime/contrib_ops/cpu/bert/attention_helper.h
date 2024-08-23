@@ -53,7 +53,7 @@ void ComputeSmoothSoftmaxInplace(T* score, int N, int D, ThreadPool* tp) {
 }
 
 template <>
-void ComputeSmoothSoftmaxInplace(float* score, int N, int D, ThreadPool* tp) {
+inline void ComputeSmoothSoftmaxInplace(float* score, int N, int D, ThreadPool* tp) {
   MlasComputeSoftmax(score, score, N, D, false, true, tp);
 }
 
