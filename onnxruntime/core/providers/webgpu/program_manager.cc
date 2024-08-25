@@ -13,12 +13,12 @@
 namespace onnxruntime {
 namespace webgpu {
 
-ProgramArtifact::ProgramArtifact(const Program& program, wgpu::ComputePipeline compute_pipeline) : name(program.Name()), compute_pipeline(compute_pipeline) {
+ProgramArtifact::ProgramArtifact(const ProgramBase& program, wgpu::ComputePipeline compute_pipeline) : name(program.Name()), compute_pipeline(compute_pipeline) {
   // prepare uniform info
   size_t current_offset = 0;
   for (const auto& uniform : program.UniformVariables()) {
-    bool is_f16 = uniform.data_type == ProgramUniformVariableDataType::f16;
-    size_t length = uniform.num_elements;
+    bool is_f16 = uniform.data_type == ProgramUniformVariableDataType::Float16;
+    size_t length = uniform.length;
     size_t element_size = ProgramUniformVariableDataTypeSize[static_cast<int>(uniform.data_type)];
     // https://www.w3.org/TR/WGSL/#alignof
     size_t base_alignment = is_f16
@@ -45,32 +45,36 @@ ProgramArtifact::ProgramArtifact(const Program& program, wgpu::ComputePipeline c
   uniform_total_size = (current_offset + max_alignment_of_field - 1) / max_alignment_of_field * max_alignment_of_field;
 }
 
-ProgramManager::DispatchGroupSize ProgramManager::NormalizeDispatchGroupSize(ProgramManager::DispatchGroupSize dispatch) const {
-  auto [x, y, z] = dispatch;
-
+Status ProgramManager::NormalizeDispatchGroupSize(uint32_t& x, uint32_t& y, uint32_t& z) const {
   auto limit_per_dimension = limits_.maxComputeWorkgroupsPerDimension;
-  if (x <= limit_per_dimension && y <= limit_per_dimension && z <= limit_per_dimension) {
-    return {x, y, z};
+  if (x > limit_per_dimension || y > limit_per_dimension || z > limit_per_dimension) {
+    auto size = static_cast<double>(x) * static_cast<double>(y) * static_cast<double>(z);
+    SafeInt<uint32_t> dispatch_avg = std::ceil(std::sqrt(size));
+    if (dispatch_avg > limit_per_dimension) {
+      dispatch_avg = std::ceil(std::cbrt(size));
+      ORT_RETURN_IF(dispatch_avg > limit_per_dimension, "The dispatch group size exceeds WebGPU maximum.");
+      x = y = z = dispatch_avg;
+    } else {
+      x = y = dispatch_avg;
+      z = 1;
+    }
   }
-
-  auto size = static_cast<double>(x) * static_cast<double>(y) * static_cast<double>(z);
-  SafeInt<uint32_t> dispatch_avg = std::ceil(std::sqrt(size));
-  if (dispatch_avg > limit_per_dimension) {
-    dispatch_avg = std::ceil(std::cbrt(size));
-    ORT_ENFORCE(dispatch_avg <= limit_per_dimension, "The dispatch group size exceeds WebGPU maximum.");
-    return {dispatch_avg, dispatch_avg, dispatch_avg};
-  } else {
-    return {dispatch_avg, dispatch_avg, 1};
-  }
+  return Status::OK();
 }
 
-Status ProgramManager::Build(const Program& program, DispatchGroupSize normalized_dispatch, wgpu::ComputePipeline& compute_pipeline) const {
+Status ProgramManager::Build(const ProgramBase& program,
+                             const ProgramMetadata& program_metadata,
+                             uint32_t normalized_dispatch_x,
+                             uint32_t normalized_dispatch_y,
+                             uint32_t normalized_dispatch_z,
+                             wgpu::ComputePipeline& compute_pipeline) const {
   ShaderHelper shader_helper{program,
+                             program_metadata,
                              device_,
                              limits_,
-                             std::get<0>(normalized_dispatch),
-                             std::get<1>(normalized_dispatch),
-                             std::get<2>(normalized_dispatch)};
+                             normalized_dispatch_x,
+                             normalized_dispatch_y,
+                             normalized_dispatch_z};
 
   ORT_RETURN_IF_ERROR(program.GenerateShaderCode(shader_helper));
 
@@ -90,6 +94,7 @@ Status ProgramManager::Build(const Program& program, DispatchGroupSize normalize
   wgpu::ProgrammableStageDescriptor compute_stage{};
   compute_stage.module = shader_module;
   compute_stage.entryPoint = "main";
+  // TODO: add const entries
 
   wgpu::ComputePipelineDescriptor pipeline_descriptor{};
   pipeline_descriptor.compute = compute_stage;

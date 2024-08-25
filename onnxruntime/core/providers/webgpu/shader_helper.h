@@ -17,39 +17,10 @@
 namespace onnxruntime {
 namespace webgpu {
 
-const SafeInt<uint32_t> WORKGROUP_SIZE = 64;
-
-enum class ShaderVariableScope {
-  Input = 0,
-  Output = 1,
-  Local = 2,
-};
-
-enum class ShaderVariableDataType {
-  invalid_type = -1,
-  f32,
-  vec2f32,
-  vec4f32,
-  f16,
-  vec2f16,
-  vec4f16,
-  i32,
-  vec2i32,
-  vec4i32,
-  u32,
-  vec2u32,
-  vec4u32,
-  int64,
-  uint64,
-  vec4bool,
-};
-
-ShaderVariableDataType ToShaderVariableDataType(int32_t element_type, int component = 1);
-
 class ShaderVariable {
  public:
-  ShaderVariable(const std::string& name, ShaderVariableDataType type, int rank);
-  ShaderVariable(const std::string& name, ShaderVariableDataType type, const TensorShape& dims);
+  ShaderVariable(const std::string& name, ProgramVariableDataType type, int rank);
+  ShaderVariable(const std::string& name, ProgramVariableDataType type, const TensorShape& dims);
 
   ShaderVariable(ShaderVariable&&) = default;
   ShaderVariable& operator=(ShaderVariable&&) = default;
@@ -64,7 +35,7 @@ class ShaderVariable {
   std::string_view StorageType() const;
 
   std::string name_;
-  ShaderVariableDataType type_;
+  ProgramVariableDataType type_;
   int rank_;
   TensorShape dims_;
   bool use_uniform_;
@@ -74,23 +45,31 @@ class ShaderVariable {
 
 class ShaderHelper final {
  public:
-  ShaderHelper(const Program& program, const wgpu::Device& device, const wgpu::Limits& limits, uint32_t dispatch_group_size_x, uint32_t dispatch_group_size_y, uint32_t dispatch_group_size_z);
+  ShaderHelper(const ProgramBase& program,
+               const ProgramMetadata& program_metadata,
+               const wgpu::Device& device,
+               const wgpu::Limits& limits,
+               uint32_t dispatch_group_size_x,
+               uint32_t dispatch_group_size_y,
+               uint32_t dispatch_group_size_z);
 
-  const ShaderVariable& AddVariable(ShaderVariableScope scope, const std::string& name, ShaderVariableDataType type, int rank = 1) {
+  const ShaderVariable& AddVariable(ProgramVariableScope scope, const std::string& name, ProgramVariableDataType type, int rank = 1) {
     return AddVariableImpl(scope, name, type, rank);
   }
-  const ShaderVariable& AddVariable(ShaderVariableScope scope, const std::string& name, ShaderVariableDataType type, const TensorShape& dims) {
+  const ShaderVariable& AddVariable(ProgramVariableScope scope, const std::string& name, ProgramVariableDataType type, const TensorShape& dims) {
     return AddVariableImpl(scope, name, type, dims);
   }
 
   template <typename... Strs>
-  ShaderHelper& AppendImplementation(const Strs&... impl) {
-    implementation_.push_back(MakeStringWithClassicLocale(impl...));
+  ShaderHelper& AppendImplementation(Strs&&... impl) {
+    implementation_.push_back(MakeStringWithClassicLocale(std::forward<Strs>(impl)...));
     return *this;
   }
 
   template <typename... Strs>
-  ShaderHelper& MainFunctionBody(const Strs&... body) { return MainFunctionBody({WORKGROUP_SIZE, 1, 1}, body...); }
+  ShaderHelper& MainFunctionBody(const Strs&&... body) {
+    return MainFunctionBody({WORKGROUP_SIZE, 1, 1}, std::forward<Strs>(body)...);
+  }
 
   template <typename... Strs>
   ShaderHelper& MainFunctionBody(std::tuple<uint32_t, uint32_t, uint32_t> workgroup_size, const Strs&... body) {
@@ -138,8 +117,8 @@ class ShaderHelper final {
             "                     * (workgroup_size_x * workgroup_size_y * workgroup_size_z) + local_idx;\n";
     }
 
-    ss << MakeStringWithClassicLocale(body...) << "\n"
-                                                  "}\n";
+    ss << MakeStringWithClassicLocale(std::forward<Strs>(body)...) << "\n"
+                                                                      "}\n";
 
     body_ = ss.str();
     return *this;
@@ -151,12 +130,12 @@ class ShaderHelper final {
 
  private:
   template <typename T>
-  const ShaderVariable& AddVariableImpl(ShaderVariableScope scope, const std::string& name, ShaderVariableDataType type, T&& arg) {
-    ORT_ENFORCE((scope == ShaderVariableScope::Input || scope == ShaderVariableScope::Output) &&
-                    vars_[static_cast<int>(ShaderVariableScope::Input)].size() + vars_[static_cast<int>(ShaderVariableScope::Output)].size() < limits_.maxStorageBuffersPerShaderStage,
+  const ShaderVariable& AddVariableImpl(ProgramVariableScope scope, const std::string& name, ProgramVariableDataType type, T&& arg) {
+    ORT_ENFORCE((scope == ProgramVariableScope::Input || scope == ProgramVariableScope::Output) &&
+                    vars_[static_cast<int>(ProgramVariableScope::Input)].size() + vars_[static_cast<int>(ProgramVariableScope::Output)].size() < limits_.maxStorageBuffersPerShaderStage,
                 "Too many storage buffers in shader. Max is ", limits_.maxStorageBuffersPerShaderStage);
 
-    if (type == ShaderVariableDataType::f16 || type == ShaderVariableDataType::vec2f16 || type == ShaderVariableDataType::vec4f16) {
+    if (type == ProgramVariableDataType::Float16 || type == ProgramVariableDataType::Vec2Float16 || type == ProgramVariableDataType::Vec4Float16) {
       use_f16_ = true;
     }
 
@@ -172,7 +151,8 @@ class ShaderHelper final {
   uint32_t dispatch_group_size_y_;
   uint32_t dispatch_group_size_z_;
 
-  const Program& program_;
+  const ProgramBase& program_;
+  const ProgramMetadata& program_metadata_;
 
   std::array<std::vector<ShaderVariable>, 3> vars_;
   std::vector<std::string> implementation_;

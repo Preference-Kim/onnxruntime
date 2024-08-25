@@ -10,63 +10,12 @@
 namespace onnxruntime {
 namespace webgpu {
 
-ShaderVariableDataType ToShaderVariableDataType(int32_t element_type, int component /* = 1 */) {
-  if (component == 1) {
-    switch (element_type) {
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-        return ShaderVariableDataType::f32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        return ShaderVariableDataType::f16;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-        return ShaderVariableDataType::i32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-        return ShaderVariableDataType::u32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-        return ShaderVariableDataType::int64;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
-        return ShaderVariableDataType::uint64;
-      default:
-        return ShaderVariableDataType::invalid_type;
-    }
-  } else if (component == 2) {
-    switch (element_type) {
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-        return ShaderVariableDataType::vec2f32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        return ShaderVariableDataType::vec2f16;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-        return ShaderVariableDataType::vec2i32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-        return ShaderVariableDataType::vec2u32;
-      default:
-        return ShaderVariableDataType::invalid_type;
-    }
-  } else if (component == 4) {
-    switch (element_type) {
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-        return ShaderVariableDataType::vec4f32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        return ShaderVariableDataType::vec4f16;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-        return ShaderVariableDataType::vec4i32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-        return ShaderVariableDataType::vec4u32;
-      case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-        return ShaderVariableDataType::vec4bool;
-      default:
-        return ShaderVariableDataType::invalid_type;
-    }
-  } else {
-    return ShaderVariableDataType::invalid_type;
-  }
+ShaderVariable::ShaderVariable(const std::string& name, ProgramVariableDataType type, int rank) : name_(name), type_(type), rank_(rank), use_uniform_(true) {
+  ORT_ENFORCE(type != ProgramVariableDataType::InvalidType, "Invalid type for variable ", name_);
 }
 
-ShaderVariable::ShaderVariable(const std::string& name, ShaderVariableDataType type, int rank) : name_(name), type_(type), rank_(rank), use_uniform_(true) {
-  ORT_ENFORCE(type != ShaderVariableDataType::invalid_type, "Invalid type for variable ", name_);
-}
-
-ShaderVariable::ShaderVariable(const std::string& name, ShaderVariableDataType type, const TensorShape& dims) : name_(name), type_(type), rank_(0), dims_(dims), use_uniform_(false) {
-  ORT_ENFORCE(type != ShaderVariableDataType::invalid_type, "Invalid type for variable ", name_);
+ShaderVariable::ShaderVariable(const std::string& name, ProgramVariableDataType type, const TensorShape& dims) : name_(name), type_(type), rank_(0), dims_(dims), use_uniform_(false) {
+  ORT_ENFORCE(type != ProgramVariableDataType::InvalidType, "Invalid type for variable ", name_);
 }
 
 std::string ShaderVariable::GetByOffset(const std::string& offset) const {
@@ -74,16 +23,16 @@ std::string ShaderVariable::GetByOffset(const std::string& offset) const {
   ss.imbue(std::locale::classic());
 
   switch (type_) {
-    case onnxruntime::webgpu::ShaderVariableDataType::invalid_type:
+    case onnxruntime::webgpu::ProgramVariableDataType::InvalidType:
       ORT_THROW("Invalid type");
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::int64:
+    case onnxruntime::webgpu::ProgramVariableDataType::Int64:
       ss << "i32(" << name_ << "[" << offset << "].x)";
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::uint64:
+    case onnxruntime::webgpu::ProgramVariableDataType::Uint64:
       ss << "u32(" << name_ << "[" << offset << "].x)";
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::vec4bool:
+    case onnxruntime::webgpu::ProgramVariableDataType::Vec4Bool:
       ss << "vec4<bool>(bool("
          << name_ << "[" << offset << "] & 0xFFu), bool("
          << name_ << "[" << offset << "] & 0xFF00u), bool("
@@ -102,16 +51,16 @@ std::string ShaderVariable::SetByOffset(const std::string& offset, const std::st
   ss.imbue(std::locale::classic());
 
   switch (type_) {
-    case onnxruntime::webgpu::ShaderVariableDataType::invalid_type:
+    case onnxruntime::webgpu::ProgramVariableDataType::InvalidType:
       ORT_THROW("Invalid type");
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::int64:
+    case onnxruntime::webgpu::ProgramVariableDataType::Int64:
       ss << name_ << "[" << offset << "]=vec2<u32>(u32(" << value << "), select(0u, 0xFFFFFFFFu, " << value << " < 0));";
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::uint64:
+    case onnxruntime::webgpu::ProgramVariableDataType::Uint64:
       ss << name_ << "[" << offset << "]=vec2<u32>(u32(" << value << "), 0u);";
       break;
-    case onnxruntime::webgpu::ShaderVariableDataType::vec4bool:
+    case onnxruntime::webgpu::ProgramVariableDataType::Vec4Bool:
       ss << name_ << "[" << offset << "]=dot(vec4<u32>(0x1, 0x100, 0x10000, 0x1000000), vec4<u32>(" << value << "));";
       break;
     default:
@@ -143,13 +92,20 @@ std::string_view ShaderVariable::StorageType() const {
   return STORAGE_TYPE[static_cast<int>(type_)];
 }
 
-ShaderHelper::ShaderHelper(const Program& program, const wgpu::Device& device, const wgpu::Limits& limits, uint32_t dispatch_group_size_x, uint32_t dispatch_group_size_y, uint32_t dispatch_group_size_z)
+ShaderHelper::ShaderHelper(const ProgramBase& program,
+                           const ProgramMetadata& program_metadata,
+                           const wgpu::Device& device,
+                           const wgpu::Limits& limits,
+                           uint32_t dispatch_group_size_x,
+                           uint32_t dispatch_group_size_y,
+                           uint32_t dispatch_group_size_z)
     : device_{device},
       limits_{limits},
       dispatch_group_size_x_{dispatch_group_size_x},
       dispatch_group_size_y_{dispatch_group_size_y},
       dispatch_group_size_z_{dispatch_group_size_z},
       program_{program},
+      program_metadata_{program_metadata},
       use_f16_{false} {
   ORT_ENFORCE(dispatch_group_size_x_ > 0 && dispatch_group_size_y_ > 0 && dispatch_group_size_z_ > 0, "Invalid dispatch group size");
 }
@@ -174,14 +130,39 @@ std::string ShaderHelper::GetFinalSourceCode() const {
         "override workgroup_size_y: u32 = 1;\n"
         "override workgroup_size_z: u32 = 1;\n\n";
 
+  for (const auto& constant : program_.OverridableConstants()) {
+    ss << "override " << constant.name << ": " << ProgramConstantDataTypeName[static_cast<int>(constant.type)];
+    if (constant.default_value.has_value()) {
+      ss << " = ";
+      switch (constant.type) {
+        case ProgramConstantDataType::f16:
+        case ProgramConstantDataType::f32:
+          ss << constant.default_value.value();
+          break;
+        case ProgramConstantDataType::i32:
+          ss << static_cast<int32_t>(constant.default_value.value());
+          break;
+        case ProgramConstantDataType::u32:
+          ss << static_cast<uint32_t>(constant.default_value.value());
+          break;
+        case ProgramConstantDataType::boolean:
+          ss << (constant.default_value.value() == 0) ? "true" : "false";
+          break;
+      }
+    }
+    ss << ";\n";
+  }
+
+  program_.GetConstants();
+
   //
   // Input/output variables
   //
   int variable_count = 0;
-  for (const auto& input : vars_[static_cast<int>(ShaderVariableScope::Input)]) {
+  for (const auto& input : vars_[static_cast<int>(ProgramVariableScope::Input)]) {
     ss << "@group(0) @binding(" << variable_count++ << ") var<storage, read> " << input.Name() << ": array<" << input.StorageType() << ">;\n";
   }
-  for (const auto& output : vars_[static_cast<int>(ShaderVariableScope::Output)]) {
+  for (const auto& output : vars_[static_cast<int>(ProgramVariableScope::Output)]) {
     ss << "@group(0) @binding(" << variable_count++ << ") var<storage, read_write> " << output.Name() << ": array<" << output.StorageType() << ">;\n";
   }
 

@@ -7,15 +7,14 @@
 
 namespace onnxruntime {
 namespace webgpu {
-
 Status UnaryElementwiseProgramInfo::GenerateShaderCode(ShaderHelper& sh) const {
-  const auto& input = sh.AddVariable(ShaderVariableScope::Input,
+  const auto& input = sh.AddVariable(ProgramVariableScope::Input,
                                      "x",
-                                     ToShaderVariableDataType(this->Inputs()[0].tensor->GetElementType(), 4),
+                                     ToProgramVariableDataType(Inputs()[0].tensor->GetElementType(), 4),
                                      1);
-  const auto& output = sh.AddVariable(ShaderVariableScope::Output,
+  const auto& output = sh.AddVariable(ProgramVariableScope::Output,
                                       "y",
-                                      ToShaderVariableDataType(this->Outputs()[0]->GetElementType(), 4),
+                                      ToProgramVariableDataType(Outputs()[0]->GetElementType(), 4),
                                       1);
   sh.AppendImplementation(additional_impl_);
   sh.MainFunctionBody(sh.GuardAgainstOutOfBoundsWorkgroupSizes("uniforms.vec_size"),
@@ -57,9 +56,9 @@ Status UnaryElementwiseProgramInfo::GenerateShaderCode(ShaderHelper& sh) const {
       KernelDefBuilder().TypeConstraint("T", TYPE),                                                \
       KERNEL_CLASS);
 
-WEBGPU_ELEMENTWISE_IMPL(Abs, "abs(a)")
-WEBGPU_ELEMENTWISE_VERSIONED_KERNEL(Abs, 6, 12, Abs, WebGpuSupportedFloatTypes())
-WEBGPU_ELEMENTWISE_KERNEL(Abs, 13, Abs, WebGpuSupportedFloatTypes())
+// WEBGPU_ELEMENTWISE_IMPL(Abs, "abs(a)")
+// WEBGPU_ELEMENTWISE_VERSIONED_KERNEL(Abs, 6, 12, Abs, WebGpuSupportedFloatTypes())
+// WEBGPU_ELEMENTWISE_KERNEL(Abs, 13, Abs, WebGpuSupportedFloatTypes())
 
 }  // namespace webgpu
 }  // namespace onnxruntime
