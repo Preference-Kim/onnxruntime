@@ -213,7 +213,7 @@ void TransformerMemcpyImpl::ProcessDefs(onnxruntime::Node& node, const KernelReg
     // note KernelCreateInfo might be nullptr for custom kernel
     const KernelCreateInfo* kci = nullptr;
     ORT_IGNORE_RETURN_VALUE(kernel_registries.SearchKernelRegistry(node, &kci));
-
+    std::cout << "SearchKernelRegistry: " << node.Name() << "  " << kci << std::endl;
     bool is_implicit_input = false;
     auto process_inputs =
         [this, &node, &kci, &initializers_consumed, &is_implicit_input](const onnxruntime::NodeArg& arg, size_t index) {
@@ -221,12 +221,13 @@ void TransformerMemcpyImpl::ProcessDefs(onnxruntime::Node& node, const KernelReg
           const auto* initializer_tensor_proto = GetInitializer(graph_, arg.Name(), true);
           if (initializer_tensor_proto != nullptr) {
             initializers_consumed[arg.Name()] = initializer_tensor_proto;
+            std::cout << "initializers_consumed: " << arg.Name() << std::endl;
           }
 
           // implicit inputs have no location info in the kernel def, so do nothing to them here, leaving the control
           // flow op (Loop, Scan, If) to do the necessary copy if the input crosses different provider.
           // PlannerImpl::ComputeUseCounts has matching logic so the allocation plan does the same thing
-          std::cout << "is_implicit_input: " << arg.Name() << "  " << is_implicit_input << std::endl;
+          // std::cout << "is_implicit_input: " << arg.Name() << "  " << is_implicit_input << std::endl;
           if (!is_implicit_input) {
             if (utils::IsInputOnCpu(node, kci, index)) {
               std::cout << "adding to non_provider_input_defs_: " << arg.Name() << std::endl;
