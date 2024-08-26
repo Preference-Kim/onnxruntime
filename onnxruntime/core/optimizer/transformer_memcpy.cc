@@ -206,6 +206,7 @@ void TransformerMemcpyImpl::ProcessDefs(onnxruntime::Node& node, const KernelReg
                                         InitializedTensorSet& initializers_consumed) {
   auto node_provider_type = node.GetExecutionProviderType();
   if ((node_provider_type == provider_) ||
+      (node_provider_type == kJsExecutionProvider && kJsExecutionProvider == provider_) ||
       (node_provider_type == kCudaExecutionProvider && kTensorrtExecutionProvider == provider_) ||
       (node_provider_type == kRocmExecutionProvider && kMIGraphXExecutionProvider == provider_)) {
     provider_nodes_.insert(&node);
@@ -225,10 +226,13 @@ void TransformerMemcpyImpl::ProcessDefs(onnxruntime::Node& node, const KernelReg
           // implicit inputs have no location info in the kernel def, so do nothing to them here, leaving the control
           // flow op (Loop, Scan, If) to do the necessary copy if the input crosses different provider.
           // PlannerImpl::ComputeUseCounts has matching logic so the allocation plan does the same thing
+          std::cout << "is_implicit_input: " << arg.Name() << "  " << is_implicit_input << std::endl;
           if (!is_implicit_input) {
             if (utils::IsInputOnCpu(node, kci, index)) {
+              std::cout << "adding to non_provider_input_defs_: " << arg.Name() << std::endl;
               non_provider_input_defs_.insert(&arg);
             } else {
+              std::cout << "adding to provider_input_defs_: " << arg.Name() << std::endl;
               provider_input_defs_.insert(&arg);
             }
           }
@@ -328,6 +332,10 @@ void TransformerMemcpyImpl::AddCopyNode(onnxruntime::NodeArg* arg, bool is_input
   const auto op_name = is_input ? "MemcpyFromHost" : "MemcpyToHost";
   LOGS(logger, INFO) << "Add " << op_name << (is_input ? " after " : " before ") << arg->Name()
                      << " for " << provider_;
+
+  std::cout  << "Add " << op_name << (is_input ? " after " : " before ") << arg->Name()
+                     << " for " << provider_ << std::endl;
+
 
   auto& new_node = graph_.AddNode(new_node_name, op_name, "Copy from/to host memory",
                                   std::vector<onnxruntime::NodeArg*>{src_arg},
